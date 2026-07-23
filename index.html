@@ -50,10 +50,10 @@
     <input type="number" id="cycleInput" value="132" min="2" max="1440" onchange="computeAndRender()">
     <button onclick="loadDate(document.getElementById('dateInput').value)">LOAD</button>
         <button onclick="findTop5X3Diff()">TOP 5 Δ</button>
-        <button onclick="scanX3X4()">X3→X4 Δ</button>
+        <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
-  <div id="sub">EUR/USD · LONDON/NEW YORK OVERLAP · 12:00–16:00 UTC · CYCLE = SEC/ROW</div>
+  <div id="sub">EUR/USD · 10:30–22:30 IST SESSION · CYCLE = SEC/ROW</div>
   <div id="panel"></div>
 
   <div id="modalOverlay" onclick="if(event.target===this) closeModal()">
@@ -75,13 +75,13 @@
   
     <div id="x3x4Overlay" onclick="if(event.target===this) closeX3X4()">
       <div id="x3x4Box">
-        <div id="x3x4Head"><span>X3→X4 % SHIFT · BEST / WORST ROWS</span><span onclick="closeX3X4()">✕</span></div>
+        <div id="x3x4Head"><span>SHIFT SCAN · BEST PER LEVEL</span><span onclick="closeX3X4()">✕</span></div>
         <div id="x3x4Body"></div>
       </div>
     </div>
   
   <script>
-const SESSION_SEC = 14400; // fixed LON/NY overlap = 12:00–16:00 UTC
+const SESSION_SEC = 43200; // fixed session = 10:30–22:30 IST (05:00–17:00 UTC)
 let prices = new Array(SESSION_SEC).fill(-1);
 let histR = [], histG = [];
 
@@ -107,7 +107,7 @@ function fetchChunk(s, e){
 
 async function loadDate(dateStr){
   const [Y,M,D] = dateStr.split('-').map(Number);
-  const startTs = Date.UTC(Y, M-1, D, 12, 0, 0) / 1000; // 12:00 UTC = LON/NY overlap start
+  const startTs = Date.UTC(Y, M-1, D, 5, 0, 0) / 1000; // 05:00 UTC = 10:30 IST session start
   const endTs = startTs + SESSION_SEC - 1;
   const nowTs = Math.floor(Date.now()/1000);
   const fetchEnd = Math.min(endTs, nowTs);
@@ -249,23 +249,35 @@ function pctAt(cumHist, s){
 
 function scanX3X4(){
   const CYCLE = histR.length;
-  const results = [];
-  for (let r = 0; r < CYCLE; r++){
-    const cumR = applyCumulative(histR[r]||{});
-    const cumG = applyCumulative(histG[r]||{});
-    const pR3 = pctAt(cumR,3), pR4 = pctAt(cumR,4);
-    const pG3 = pctAt(cumG,3), pG4 = pctAt(cumG,4);
-    if (pR3 !== null && pR4 !== null) results.push({row:r, color:'R', pct3:pR3, pct4:pR4, cnt3:cumR[3]||0, cnt4:cumR[4]||0, diff:pR4-pR3});
-    if (pG3 !== null && pG4 !== null) results.push({row:r, color:'G', pct3:pG3, pct4:pG4, cnt3:cumG[3]||0, cnt4:cumG[4]||0, diff:pG4-pG3});
+  const levels = [
+    {a:2, b:3, label:'X2→X3'},
+    {a:3, b:4, label:'X3→X4'},
+    {a:4, b:5, label:'X4→X5'}
+  ];
+  function bestForLevel(a, b){
+    const results = [];
+    for (let r = 0; r < CYCLE; r++){
+      const cumR = applyCumulative(histR[r]||{});
+      const cumG = applyCumulative(histG[r]||{});
+      const pRa = pctAt(cumR, a), pRb = pctAt(cumR, b);
+      const pGa = pctAt(cumG, a), pGb = pctAt(cumG, b);
+      if (pRa !== null && pRb !== null) results.push({row:r, color:'R', pctA:pRa, pctB:pRb, cntA:cumR[a]||0, cntB:cumR[b]||0, diff:pRb-pRa});
+      if (pGa !== null && pGb !== null) results.push({row:r, color:'G', pctA:pGa, pctB:pGb, cntA:cumG[a]||0, cntB:cumG[b]||0, diff:pGb-pGa});
+    }
+    results.sort((x,y)=>y.diff-x.diff);
+    return results[0] || null;
   }
-  const sorted = results.slice().sort((a,b)=>b.diff-a.diff);
-  const best = sorted.slice(0,1);
-  function line(t){
+  function line(t, a, b){
+    if (!t) return '<div class="x3x4Row" style="color:#888">No data</div>';
     const col = t.color==='R' ? 'var(--r)' : 'var(--g)';
-    return '<div class="x3x4Row" style="color:'+col+'"><span>ROW '+t.row+' ('+t.color+')</span><span class="x3x4Hl">X3 '+t.pct3+'% '+t.cnt3+'× → X4 '+t.pct4+'% '+t.cnt4+'×</span><span>Δ'+(t.diff>0?'+':'')+t.diff+'</span></div>';
+    return '<div class="x3x4Row" style="color:'+col+'"><span>ROW '+t.row+' ('+t.color+')</span><span class="x3x4Hl">X'+a+' '+t.pctA+'% '+t.cntA+'× → X'+b+' '+t.pctB+'% '+t.cntB+'×</span><span>Δ'+(t.diff>0?'+':'')+t.diff+'</span></div>';
   }
-  document.getElementById('x3x4Body').innerHTML =
-    '<div class="x3x4Sec">BEST (BIGGEST JUMP)</div>' + (best.length ? best.map(line).join('') : '<div class="x3x4Row" style="color:#888">No data</div>');
+  let html = '';
+  for (const lvl of levels){
+    const best = bestForLevel(lvl.a, lvl.b);
+    html += '<div class="x3x4Sec">'+lvl.label+' · BEST</div>' + line(best, lvl.a, lvl.b);
+  }
+  document.getElementById('x3x4Body').innerHTML = html;
   document.getElementById('x3x4Overlay').style.display = 'flex';
 }
 function closeX3X4(){ document.getElementById('x3x4Overlay').style.display = 'none'; }
