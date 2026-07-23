@@ -46,10 +46,10 @@
 </head>
 <body>
   <div id="bar">
-    <input type="date" id="dateInput">
+    <input type="date" id="dateInput" onchange="loadDate(this.value).then(scanX3X4)">
     <input type="number" id="cycleInput" value="132" min="2" max="1440" onchange="computeAndRender()">
     <button onclick="loadDate(document.getElementById('dateInput').value)">LOAD</button>
-        <button onclick="findTop5X3Diff()">TOP 5 Δ</button>
+        <button onclick="findTop5X3Diff()" style="display:none">TOP 5 Δ</button>
         <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
