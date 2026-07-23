@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREAK PANEL · EUR/USD</title>
+<title>STREAK PANEL · BTC/USD</title>
 <style>
   :root{--bg:#000432;--g:#2ED573;--r:#E63946;--tx:#E2E8F0;--bd:#ffffff;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -53,7 +53,7 @@
         <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
-  <div id="sub">EUR/USD · 10:30–22:30 IST SESSION · CYCLE = SEC/ROW</div>
+  <div id="sub">BTC/USD · 6:30–10:30pm IST SESSION · CYCLE = SEC/ROW</div>
   <div id="panel"></div>
 
   <div id="modalOverlay" onclick="if(event.target===this) closeModal()">
@@ -81,7 +81,7 @@
     </div>
   
   <script>
-const SESSION_SEC = 43200; // fixed session = 10:30–22:30 IST (05:00–17:00 UTC)
+const SESSION_SEC = 14400; // fixed session = 6:30–10:30pm IST (13:00–17:00 UTC)
 let prices = new Array(SESSION_SEC).fill(-1);
 let histR = [], histG = [];
 
@@ -92,7 +92,7 @@ function fetchChunk(s, e){
   return new Promise(res=>{
     const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
     const t = setTimeout(()=>{ try{ws.close();}catch(x){} res({}); }, 20000);
-    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'frxEURUSD', start:s, end:e, count:5000, style:'ticks' }));
+    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'cryBTCUSD', start:s, end:e, count:5000, style:'ticks' }));
     ws.onmessage = ev=>{
       clearTimeout(t);
       let d; try{ d = JSON.parse(ev.data); }catch(x){ d = {}; }
@@ -107,7 +107,7 @@ function fetchChunk(s, e){
 
 async function loadDate(dateStr){
   const [Y,M,D] = dateStr.split('-').map(Number);
-  const startTs = Date.UTC(Y, M-1, D, 5, 0, 0) / 1000; // 05:00 UTC = 10:30 IST session start
+  const startTs = Date.UTC(Y, M-1, D, 13, 0, 0) / 1000; // 13:00 UTC = 6:30pm IST session start
   const endTs = startTs + SESSION_SEC - 1;
   const nowTs = Math.floor(Date.now()/1000);
   const fetchEnd = Math.min(endTs, nowTs);
