@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREAK PANEL · EURUSD</title>
+<title>STREAK PANEL · BTCUSD</title>
 <style>
   :root{--bg:#000432;--g:#2ED573;--r:#E63946;--tx:#E2E8F0;--bd:#ffffff;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -48,7 +48,11 @@
     .x3x4Sec{font-size:10px;color:#888;letter-spacing:1px;padding:6px 2px 2px;}
     .x3x4Row{display:flex;justify-content:space-between;font-size:11px;font-weight:700;padding:4px 2px;border-bottom:1px solid #222;}
     .x3x4Hl{border:1px solid #ffe45c;border-radius:2px;padding:1px 4px;}
-  </style>
+        .statRow{display:flex;flex-wrap:wrap;border:1px solid var(--bd);border-radius:2px;overflow:hidden;margin-bottom:4px;font-size:11px;font-weight:700;}
+        .statCell{padding:4px 8px;border-right:1px solid var(--bd);white-space:nowrap;}
+        .statCell:last-child{border-right:none;}
+        .statPct{color:#fff;background:rgba(255,255,255,.06);font-weight:800;}
+      </style>
 </head>
 <body>
   <div id="bar">
@@ -59,12 +63,10 @@
         <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
-  <div id="sub">EURUSD · 10:30am–10:30pm IST SESSION · CYCLE = SEC/ROW</div>
+  <div id="sub">BTCUSD · 05:30–05:30 IST · FULL 24H · CYCLE = SEC/ROW</div>
     <div id="sessTabs">
-          <span class="sessTab active" onclick="switchSession(0)">S1 10:30-14:30</span>
-          <span class="sessTab" onclick="switchSession(1)">S2 14:30-18:30</span>
-          <span class="sessTab" onclick="switchSession(2)">S3 18:30-22:30</span>
-        </div>
+              <span class="sessTab active" onclick="switchSession(0)">S1 05:30-05:30 (24H)</span>
+            </div>
     <div id="mainRow">
           <div id="panel"></div>
           <div id="shiftPanel"></div>
@@ -95,9 +97,9 @@
     </div>
   
   <script>
-const SESSION_SEC = 43200; // fixed session = 10:30–22:30 IST same day (05:00–17:00 UTC same day)
-const SUB_SESSION_SEC = 14400; // each sub-session = 4 hours
-const SUB_SESSION_COUNT = 3; // 12hr / 4hr = 3 sessions
+const SESSION_SEC = 86400; // fixed session = 05:30–05:30 IST next day (00:00–00:00 UTC next day), full 24h
+const SUB_SESSION_SEC = 86400; // single session = full 24 hours
+const SUB_SESSION_COUNT = 1; // one session covering the whole day
 let prices = new Array(SESSION_SEC).fill(-1);
 let histR = [], histG = []; // histR[session][row], histG[session][row]
 let currentSession = 0;
@@ -109,7 +111,7 @@ function fetchChunk(s, e){
   return new Promise(res=>{
     const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
     const t = setTimeout(()=>{ try{ws.close();}catch(x){} res({}); }, 20000);
-    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'frxEURUSD', start:s, end:e, count:5000, style:'ticks' }));
+    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'cryBTCUSD', start:s, end:e, count:5000, style:'ticks' }));
     ws.onmessage = ev=>{
       clearTimeout(t);
       let d; try{ d = JSON.parse(ev.data); }catch(x){ d = {}; }
@@ -124,7 +126,7 @@ function fetchChunk(s, e){
 
 async function loadDate(dateStr){
   const [Y,M,D] = dateStr.split('-').map(Number);
-  const startTs = Date.UTC(Y, M-1, D, 5, 0, 0) / 1000; // 05:00 UTC = 10:30 IST session start
+  const startTs = Date.UTC(Y, M-1, D, 0, 0, 0) / 1000; // 00:00 UTC = 05:30 IST session start
   const endTs = startTs + SESSION_SEC - 1;
   const nowTs = Math.floor(Date.now()/1000);
   const fetchEnd = Math.min(endTs, nowTs);
@@ -301,29 +303,48 @@ function pctAt(cumHist, s){
 
 function buildShiftHtml(){
   const CYCLE = histR[currentSession].length;
-  const levels = [
-    {a:2, b:3, label:'X2→X3'},
-    {a:3, b:4, label:'X3→X4'},
-    {a:4, b:5, label:'X4→X5'}
-  ];
+
+  let maxLevel = 1;
+  for (let r = 0; r < CYCLE; r++){
+    const rKeys = Object.keys(histR[currentSession][r]||{}).map(Number);
+    const gKeys = Object.keys(histG[currentSession][r]||{}).map(Number);
+    if (rKeys.length) maxLevel = Math.max(maxLevel, ...rKeys);
+    if (gKeys.length) maxLevel = Math.max(maxLevel, ...gKeys);
+  }
+
+  const levels = [];
+  for (let a = 1; a < maxLevel; a++){
+    levels.push({a:a, b:a+1, label:'X'+a+'→X'+(a+1)});
+  }
+
   function bestForLevel(a, b){
     const results = [];
     for (let r = 0; r < CYCLE; r++){
       const cumR = applyCumulative(histR[currentSession][r]||{});
       const cumG = applyCumulative(histG[currentSession][r]||{});
-      const pRa = pctAt(cumR, a), pRb = pctAt(cumR, b);
-      const pGa = pctAt(cumG, a), pGb = pctAt(cumG, b);
-      if (pRa !== null && pRb !== null) results.push({row:r, color:'R', pctA:pRa, pctB:pRb, cntA:cumR[a]||0, cntB:cumR[b]||0, diff:pRb-pRa});
-      if (pGa !== null && pGb !== null) results.push({row:r, color:'G', pctA:pGa, pctB:pGb, cntA:cumG[a]||0, cntB:cumG[b]||0, diff:pGb-pGa});
+      const pRa = a===1 ? (cumR[1]!==undefined ? 0 : null) : pctAt(cumR, a);
+      const pRb = pctAt(cumR, b);
+      const pGa = a===1 ? (cumG[1]!==undefined ? 0 : null) : pctAt(cumG, a);
+      const pGb = pctAt(cumG, b);
+      if (pRa !== null && pRb !== null) results.push({row:r, color:'R', pctA:pRa, pctB:pRb, cntA:cumR[a]||0, cntB:cumR[b]||0, diff:pRb-pRa, isBaseA:a===1});
+      if (pGa !== null && pGb !== null) results.push({row:r, color:'G', pctA:pGa, pctB:pGb, cntA:cumG[a]||0, cntB:cumG[b]||0, diff:pGb-pGa, isBaseA:a===1});
     }
     results.sort((x,y)=>y.diff-x.diff);
     return results[0] || null;
   }
   function line(t, a, b){
-    if (!t) return '<div class="x3x4Row" style="color:#888">No data</div>';
-    const col = t.color==='R' ? 'var(--r)' : 'var(--g)';
-    return '<div class="x3x4Row" style="color:'+col+'"><span>ROW '+t.row+' ('+t.color+')</span><span class="x3x4Hl">X'+a+' '+t.pctA+'% '+t.cntA+'× → X'+b+' '+t.pctB+'% '+t.cntB+'×</span><span>Δ'+(t.diff>0?'+':'')+t.diff+'</span></div>';
-  }
+      const cycle = document.getElementById('cycleInput').value;
+      if (!t) return '<div class="statRow"><span class="statCell" style="color:#888">No data</span></div>';
+      const col = t.color==='R' ? 'var(--r)' : 'var(--g)';
+      return '<div class="statRow">'
+        + '<span class="statCell" style="color:'+col+'">C'+cycle+'</span>'
+        + '<span class="statCell" style="color:'+col+'">R'+t.row+'</span>'
+        + '<span class="statCell" style="color:'+col+'">X'+a+'-X'+b+'</span>'
+        + '<span class="statCell" style="color:'+col+'">'+t.cntA+'</span>'
+        + '<span class="statCell" style="color:'+col+'">'+t.cntB+'</span>'
+        + '<span class="statCell statPct">'+t.pctB+'%</span>'
+        + '</div>';
+    }
   let html = '';
   for (const lvl of levels){
     const best = bestForLevel(lvl.a, lvl.b);
