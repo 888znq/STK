@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREAK PANEL · BTCUSD</title>
+<title>STREAK PANEL · EURUSD</title>
 <style>
   :root{--bg:#000432;--g:#2ED573;--r:#E63946;--tx:#E2E8F0;--bd:#ffffff;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -63,10 +63,15 @@
         <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
-  <div id="sub">BTCUSD · 05:30–05:30 IST · FULL 24H · CYCLE = SEC/ROW</div>
-    <div id="sessTabs">
-              <span class="sessTab active" onclick="switchSession(0)">S1 05:30-05:30 (24H)</span>
-            </div>
+  <div id="sub">EURUSD · 10:30–22:30 IST · 6x 2H SESSIONS · CYCLE = SEC/ROW</div>
+      <div id="sessTabs">
+        <span class="sessTab active" onclick="switchSession(0)">S1 10:30-12:30</span>
+        <span class="sessTab" onclick="switchSession(1)">S2 12:30-14:30</span>
+        <span class="sessTab" onclick="switchSession(2)">S3 14:30-16:30</span>
+        <span class="sessTab" onclick="switchSession(3)">S4 16:30-18:30</span>
+        <span class="sessTab" onclick="switchSession(4)">S5 18:30-20:30</span>
+        <span class="sessTab" onclick="switchSession(5)">S6 20:30-22:30</span>
+      </div>
     <div id="mainRow">
           <div id="panel"></div>
           <div id="shiftPanel"></div>
@@ -97,9 +102,9 @@
     </div>
   
   <script>
-const SESSION_SEC = 86400; // fixed session = 05:30–05:30 IST next day (00:00–00:00 UTC next day), full 24h
-const SUB_SESSION_SEC = 86400; // single session = full 24 hours
-const SUB_SESSION_COUNT = 1; // one session covering the whole day
+const SESSION_SEC = 43200; // fixed session = 10:30–22:30 IST (05:00–17:00 UTC), full 12h
+const SUB_SESSION_SEC = 7200; // single session = 2 hours
+const SUB_SESSION_COUNT = 6; // 6 sessions covering the whole window
 let prices = new Array(SESSION_SEC).fill(-1);
 let histR = [], histG = []; // histR[session][row], histG[session][row]
 let currentSession = 0;
@@ -113,7 +118,7 @@ function status(t){ document.getElementById('status').textContent = t; }
 function startLiveFeed(){
   stopLiveFeed();
   liveWs = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
-  liveWs.onopen = ()=> liveWs.send(JSON.stringify({ ticks:'cryBTCUSD', subscribe:1 }));
+  liveWs.onopen = ()=> liveWs.send(JSON.stringify({ ticks:'frxEURUSD', subscribe:1 }));
   liveWs.onmessage = ev=>{
     let d; try{ d = JSON.parse(ev.data); }catch(x){ return; }
     if (d.tick && typeof d.tick.epoch === 'number' && typeof d.tick.quote === 'number'){
@@ -137,9 +142,9 @@ function stopLiveFeed(){
 
 function fetchChunk(s, e){
   return new Promise(res=>{
-    const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
-    const t = setTimeout(()=>{ try{ws.close();}catch(x){} res({}); }, 20000);
-    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'cryBTCUSD', start:s, end:e, count:5000, style:'ticks' }));
+    var ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
+    var t = setTimeout(()=>{ try{ws.close();}catch(x){} res({}); }, 20000);
+    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'frxEURUSD', start:s, end:e, count:5000, style:'ticks' }));
     ws.onmessage = ev=>{
       clearTimeout(t);
       let d; try{ d = JSON.parse(ev.data); }catch(x){ d = {}; }
@@ -154,8 +159,8 @@ function fetchChunk(s, e){
 
 async function loadDate(dateStr){
   stopLiveFeed();
-  const [Y,M,D] = dateStr.split('-').map(Number);
-  const startTs = Date.UTC(Y, M-1, D, 0, 0, 0) / 1000; // 00:00 UTC = 05:30 IST session start
+  var [Y,M,D] = dateStr.split('-').map(Number);
+  var startTs = Date.UTC(Y, M-1, D, 5, 0, 0) / 1000; // 05:00 UTC = 10:30 IST session start
   const endTs = startTs + SESSION_SEC - 1;
   const nowTs = Math.floor(Date.now()/1000);
   const fetchEnd = Math.min(endTs, nowTs);
