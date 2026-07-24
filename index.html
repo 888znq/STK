@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREAK PANEL · BTCUSD</title>
+<title>STREAK PANEL · XAUUSD</title>
 <style>
   :root{--bg:#000432;--g:#2ED573;--r:#E63946;--tx:#E2E8F0;--bd:#ffffff;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -59,7 +59,7 @@
         <button onclick="scanX3X4()">SHIFTS Δ</button>
         <span id="status">idle</span>
   </div>
-  <div id="sub">BTCUSD · 5:30am–5:30am IST SESSION · CYCLE = SEC/ROW</div>
+  <div id="sub">XAUUSD · 5:30am–5:30am IST SESSION · CYCLE = SEC/ROW</div>
     <div id="sessTabs">
       <span class="sessTab active" onclick="switchSession(0)">S1 05:30-09:30</span>
       <span class="sessTab" onclick="switchSession(1)">S2 09:30-13:30</span>
@@ -112,7 +112,7 @@ function fetchChunk(s, e){
   return new Promise(res=>{
     const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
     const t = setTimeout(()=>{ try{ws.close();}catch(x){} res({}); }, 20000);
-    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'cryBTCUSD', start:s, end:e, count:5000, style:'ticks' }));
+    ws.onopen = ()=> ws.send(JSON.stringify({ ticks_history:'frxXAUUSD', start:s, end:e, count:5000, style:'ticks' }));
     ws.onmessage = ev=>{
       clearTimeout(t);
       let d; try{ d = JSON.parse(ev.data); }catch(x){ d = {}; }
