@@ -103,9 +103,37 @@ const SUB_SESSION_COUNT = 1; // one session covering the whole day
 let prices = new Array(SESSION_SEC).fill(-1);
 let histR = [], histG = []; // histR[session][row], histG[session][row]
 let currentSession = 0;
+let sessionStartTs = 0;
+let liveWs = null;
+let liveTimer = null;
 
 document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
 function status(t){ document.getElementById('status').textContent = t; }
+
+function startLiveFeed(){
+  stopLiveFeed();
+  liveWs = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
+  liveWs.onopen = ()=> liveWs.send(JSON.stringify({ ticks:'cryBTCUSD', subscribe:1 }));
+  liveWs.onmessage = ev=>{
+    let d; try{ d = JSON.parse(ev.data); }catch(x){ return; }
+    if (d.tick && typeof d.tick.epoch === 'number' && typeof d.tick.quote === 'number'){
+      const idx = d.tick.epoch - sessionStartTs;
+      if (idx >= 0 && idx < prices.length) prices[idx] = d.tick.quote;
+    }
+  };
+  liveWs.onerror = ()=>{ try{ liveWs.close(); }catch(x){} };
+  liveWs.onclose = ()=>{ liveWs = null; setTimeout(startLiveFeed, 3000); };
+
+  liveTimer = setInterval(()=>{
+    computeAndRender();
+    status('live · updated ' + new Date().toLocaleTimeString());
+  }, 120000);
+}
+
+function stopLiveFeed(){
+  if (liveWs) { try{ liveWs.onclose = null; liveWs.close(); }catch(x){} liveWs = null; }
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+}
 
 function fetchChunk(s, e){
   return new Promise(res=>{
@@ -125,11 +153,13 @@ function fetchChunk(s, e){
 }
 
 async function loadDate(dateStr){
+  stopLiveFeed();
   const [Y,M,D] = dateStr.split('-').map(Number);
   const startTs = Date.UTC(Y, M-1, D, 0, 0, 0) / 1000; // 00:00 UTC = 05:30 IST session start
   const endTs = startTs + SESSION_SEC - 1;
   const nowTs = Math.floor(Date.now()/1000);
   const fetchEnd = Math.min(endTs, nowTs);
+  sessionStartTs = startTs;
 
   prices = new Array(SESSION_SEC).fill(-1);
   let got = 0;
@@ -164,8 +194,9 @@ async function loadDate(dateStr){
   await Promise.all(pool);
 
   computeAndRender();
-  status(got > 0 ? (got + ' ticks loaded') : 'no data for this window');
-}
+    status(got > 0 ? (got + ' ticks loaded') : 'no data for this window');
+    startLiveFeed();
+  }
 
 function computeAndRender(){
   const CYCLE = Math.max(2, parseInt(document.getElementById('cycleInput').value) || 60);
